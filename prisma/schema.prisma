@@ -1,0 +1,287 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  //extensions = [postgis]
+}
+
+enum Role {
+  USER
+  SHELTER_OWNER
+  ADMIN
+}
+
+enum PetStatus {
+  PENDING_REVIEW
+  AVAILABLE
+  ADOPTION_PENDING
+  ADOPTED
+  FOSTER_PENDING
+  FOSTERED
+  REJECTED
+}
+
+enum PetType {
+  DOG
+  CAT
+  RABBIT
+  OTHER
+}
+
+enum SizeCategory {
+  SMALL
+  MEDIUM
+  LARGE
+  XLARGE
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  UNKNOWN
+}
+
+enum ApplicationType {
+  ADOPTION
+  FOSTER
+  SPONSORSHIP
+}
+
+enum ApplicationStatus {
+  PENDING
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
+model Address {
+  id         Int      @id @default(autoincrement())
+  street     String
+  city       String
+  state      String
+  zipCode    String
+  country    String   @default("United States")
+  latitude   Float?
+  longitude  Float?
+  isVerified Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Corrected back-relations
+  shelter Shelter?
+  pet     Pet?
+
+  @@index([city, state])
+  @@index([zipCode])
+  @@index([latitude, longitude])
+}
+
+// model User {
+//   id           Int        @id @default(autoincrement())
+//   name         String
+//   email        String     @unique
+//   passwordHash String
+//   phoneNumber  String?
+//   role         Role       @default(USER)
+//   createdAt    DateTime   @default(now())
+//   updatedAt    DateTime   @updatedAt
+
+//   // Address relationship (optional)
+//   address      Address?   @relation(fields: [addressId], references: [id])
+//   addressId    Int?
+
+//   // Other relationships
+//   sheltersOwned          Shelter[]
+//   petsSubmitted          Pet[]
+//   statusChangesMade      StatusHistory[]
+//   applications           Application[]
+//   registrationsReviewed  PetRegistrationRequest[]
+//   loginLocations         LoginLocation[]
+// }
+
+model Shelter {
+  id               Int      @id @default(autoincrement())
+  name             String
+  shelterType      String
+  maxCapacity      Int
+  currentOccupancy Int
+  accepts          String[]
+  email            String   @unique
+  phone            String
+  altPhone         String?
+  description      String
+  website          String?
+  yearFounded      Int
+  taxId            String?
+  isVerified       Boolean  @default(false)
+  photos           String[]
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  addressProof     String[]
+
+  // Corrected address relationship (one-to-one)
+  address   Address @relation(fields: [addressId], references: [id])
+  addressId Int     @unique
+
+  contactInfo ContactInfo?
+  //owner       User    @relation(fields: [ownerId], references: [id])
+  ownerId     Int?
+  pets        Pet[]
+
+  @@index([email])
+  @@index([isVerified])
+  @@index([yearFounded])
+}
+
+model Pet {
+  id          Int          @id @default(autoincrement())
+  name        String
+  type        PetType
+  breed       String?
+  age         Int
+  gender      Gender
+  size        SizeCategory
+  status      PetStatus    @default(PENDING_REVIEW)
+  isApproved  Boolean      @default(false)
+  intakeDate  DateTime
+  description String?
+  photos      String[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  // Corrected address relationship (optional one-to-one)
+  address   Address? @relation(fields: [addressId], references: [id])
+  addressId Int?     @unique
+
+  // Corrected shelter relationship (optional many-to-one)
+  shelter   Shelter? @relation(fields: [shelterId], references: [id])
+  shelterId Int?
+
+  //submittedBy   User? @relation(fields: [submittedById], references: [id])
+  submittedById Int?
+
+  features    PetFeature?
+  medicalInfo PetMedicalInfo?
+  tags        PetTag[]
+  contactInfo ContactInfo?
+
+  @@index([status])
+  @@index([type, size])
+  @@index([shelterId])
+  @@index([isApproved])
+}
+
+model PetFeature {
+  id               Int     @id @default(autoincrement())
+  isHouseTrained   Boolean @default(false)
+  goodWithDogs     Boolean @default(false)
+  goodWithCats     Boolean @default(false)
+  goodWithChildren Boolean @default(false)
+
+  // Relationship
+  pet   Pet @relation(fields: [petId], references: [id])
+  petId Int @unique
+}
+
+model PetMedicalInfo {
+  id                      Int     @id @default(autoincrement())
+  isVaccinated            Boolean @default(false)
+  isSpayedNeutered        Boolean @default(false)
+  hasSpecialNeeds         Boolean @default(false)
+  specialNeedsDescription String?
+  medicalHistory          String? @db.Text
+
+  // Relationship
+  pet   Pet @relation(fields: [petId], references: [id])
+  petId Int @unique
+}
+
+model ContactInfo {
+  id        Int      @id @default(autoincrement())
+  email     String
+  phone     String
+  altPhone  String?
+  createdAt DateTime @default(now())
+
+  // Relationships (optional)
+  pet       Pet?     @relation(fields: [petId], references: [id])
+  petId     Int?     @unique
+  shelter   Shelter? @relation(fields: [shelterId], references: [id])
+  shelterId Int?     @unique
+}
+
+model Tag {
+  id       Int      @id @default(autoincrement())
+  name     String   @unique
+  category String?
+  pets     PetTag[]
+
+  @@index([name])
+}
+
+model PetTag {
+  pet   Pet @relation(fields: [petId], references: [id])
+  petId Int
+  tag   Tag @relation(fields: [tagId], references: [id])
+  tagId Int
+
+  @@id([petId, tagId])
+}
+
+// model Application {
+//   id          Int               @id @default(autoincrement())
+//   type        ApplicationType
+//   formData    Json
+//   status      ApplicationStatus @default(PENDING)
+//   submittedAt DateTime          @default(now())
+//   updatedAt   DateTime          @updatedAt
+//   approvedAt  DateTime?
+//   rejectedAt  DateTime?
+//   completedAt DateTime?
+//   notes       String?
+
+//   // Relationships
+//   address     Address           @relation(fields: [addressId], references: [id])
+//   addressId   Int
+//   applicant   User              @relation(fields: [applicantId], references: [id])
+//   applicantId Int
+//   pet         Pet               @relation(fields: [petId], references: [id])
+//   petId       Int
+//   documents   ApplicationDocument[]
+
+//   @@index([applicantId])
+//   @@index([petId])
+//   @@index([status])
+// }
+
+// model ApplicationDocument {
+//   id            Int         @id @default(autoincrement())
+//   type          String
+//   url           String
+//   uploadedAt    DateTime    @default(now())
+//   verified      Boolean     @default(false)
+
+//   // Relationship
+//   application   Application @relation(fields: [applicationId], references: [id])
+//   applicationId Int
+
+//   @@index([applicationId])
+// }
+
+// model LoginLocation {
+//   id        Int      @id @default(autoincrement())
+//   loginTime DateTime @default(now())
+//   ipAddress String?
+
+//   // Relationships
+//   user      User     @relation(fields: [userId], references: [id])
+//   userId    Int
+//   address   Address  @relation(fields: [addressId], references: [id])
+//   addressId Int
+
+//   @@index([userId])
+// }
